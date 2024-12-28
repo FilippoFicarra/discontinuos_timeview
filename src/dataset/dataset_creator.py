@@ -1,167 +1,77 @@
 import numpy as np
+import pandas as pd
 
 
-class DatasetCreator:
-    def __init__(self, max_discontiuities, num_samples, num_features, end_time=10, linspace=100):
-        self.max_discontiuities = max_discontiuities
+class SyntheticDataGenerator:
+    def __init__(self, max_discontinuities, num_samples, num_features, end_time=10, num_t_points=100):
+        self.max_discontinuities = max_discontinuities
         self.num_samples = num_samples
         self.num_features = num_features
         self.end_time = end_time
-        self.linspace = linspace
+        self.num_t_points = num_t_points
 
-        self.custom_functions = {
-            "sin": self.custom_sin,
-            "linear": self.custom_linear,
-            "square": self.custom_square,
-        }
-
-    def custom_sin(self, x: np.ndarray, a: np.ndarray, b: float, t: np.ndarray) -> np.ndarray:
+    def T_k(self, x: np.ndarray, k: int, w: np.ndarray) -> float:
         """
-        Custom sine function with time-dependent amplitude and phase.
-
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Input values.
-        a : np.ndarray
-            Amplitude values for each time point.
-        b : float
-            Phase shift.
-        t : np.ndarray
-            Time values.
-
-        Returns
-        -------
-        np.ndarray
-            Sine function values.
+        Function that defines the time discontinuity for each k, with weight applied to x.
         """
-        return np.sin(np.dot(a, x) + b * t)
+        weighted_x = x * w  # Apply weight to x
+        x_norm = np.linalg.norm(weighted_x, 2) / np.sqrt(len(weighted_x))  # Normalize Euclidean norm
+        return k * x_norm + k**2 * np.max(weighted_x)
 
-    def custom_linear(self, x: np.ndarray, a: np.ndarray, b: float, t: np.ndarray) -> np.ndarray:
+    def Delta_k(self, x: np.ndarray, k: int, w: np.ndarray) -> float:
         """
-        Custom linear function with time-dependent slope and intercept.
-
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Input values.
-        a : np.ndarray
-            Slope values for each time point.
-        b : float
-            Intercept.
-        t : np.ndarray
-            Time values.
-
-        Returns
-        -------
-        np.ndarray
-            Linear function values.
+        Function that defines the change at each discontinuity, with weight applied to x.
         """
-        return np.dot(a, x) + b * t
+        weighted_x = x * w  # Apply weight to x
+        x_norm = np.linalg.norm(weighted_x, 1) / len(weighted_x)  # Normalize L1 norm
+        return np.exp(x_norm) / k
 
-    def custom_square(self, x: np.ndarray, a: np.ndarray, b: float, t: np.ndarray) -> np.ndarray:
+    def h(self, x: np.ndarray, w: np.ndarray) -> float:
         """
-        Custom square function with time-dependent amplitude and phase.
-
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Input values.
-        a : np.ndarray
-            Amplitude values for each time point.
-        b : float
-            Phase shift.
-        t : np.ndarray
-            Time values.
-
-        Returns
-        -------
-        np.ndarray
-            Square function values.
+        A custom function based on the Euclidean norm of weighted x.
         """
+        weighted_x = x * w
+        return np.cos(np.linalg.norm(weighted_x, 2) / np.sqrt(len(weighted_x)))
+
+    def g(self, t: np.ndarray) -> np.ndarray:
+        """
+        A simple sine function for time-dependent behavior.
+        """
+        return np.sin(t)
+
+    def f(self, t: np.ndarray, x: np.ndarray, K: int, w: np.ndarray) -> np.ndarray:
+        """
+        Function that combines the smooth components and discontinuities, with weight applied to x.
+        """
+        y = self.g(t) + self.h(x, w)
+        for k in range(1, K + 1):
+            if t >= self.T_k(x, k, w):
+                y += self.Delta_k(x, k, w)
+        return y
+
+    def generate_synthetic_data(self) -> pd.DataFrame:
+        """
+        Generate synthetic data for multiple samples with discontinuities and weights.
+        """
+        x_data = np.random.uniform(-1, 1, size=(self.num_samples, self.num_features))
+        weights = np.random.uniform(0.1, 2, size=(self.num_samples, self.num_features))  # Random weights for each sample
+        t_values = np.linspace(0, self.end_time, self.num_t_points)
         
-        
-        return np.dot(a, x) + b * t
+        dataset = []
+        ks = []
+        for idx, x in enumerate(x_data):
+            w = weights[idx]  # Get corresponding weight for each x vector
+            k = np.random.randint(0, self.max_discontinuities + 1)
 
-    def _create_functions(self, b, threshold):
-        """
-        Create a dataset with a custom sine function.
+            for t in t_values:
+                y = self.f(t, x, k, w)
+                ks.append(k)
+                dataset.append({
+                    'k': k,
+                    't': t,
+                    **{f'x{i+1}': x[i] for i in range(self.num_features)},
+                    **{f'w{i+1}': w[i] for i in range(self.num_features)},  # Include weights in the dataset
+                    'y': y
+                })
 
-        Returns
-        -------
-        np.ndarray
-            Dataset with custom sine function.
-        """
-        for function_name, funct in self.custom_functions.items():
-            for i in range(1, self.max_discontiuities):
-                x = np.random.uniform(-5, 5, self.num_features)
-                count = 0
-                while count < self.num_samples:
-                    discontinuities = np.sort(np.random.choice(np.arange(1, self.end_time, 1), i, replace=False))
-
-                    a_vector = np.random.rand(i + 1, self.num_features)
-                    ts = []
-                    next_start_offeset = self.end_time / self.linspace
-
-                    for li in range(len(discontinuities)):
-                        if li == 0:
-                            ts.append(np.linspace(0, discontinuities[0], discontinuities[0] * 10))
-                        else:
-                            ts.append(
-                                np.linspace(
-                                    discontinuities[li - 1] + next_start_offeset,
-                                    discontinuities[li],
-                                    (discontinuities[li] - discontinuities[li - 1]) * 10,
-                                )
-                            )
-
-                    ts.append(
-                        np.linspace(
-                            discontinuities[-1] + next_start_offeset,
-                            self.end_time,
-                            (self.end_time - discontinuities[-1]) * 10,
-                        )
-                    )
-
-                    ys = [funct(x, a, b, t) for a, t in zip(a_vector, ts)]
-
-                    y = np.concatenate(ys)
-                    t = np.concatenate(ts)
-
-                    if all([abs(ys[x + 1][0] - ys[x][-1]) > threshold for x in range(len(ys) - 1)]):
-                        count += 1
-                        yield count-1, function_name, x, y, t, discontinuities, a_vector, b
-                    else:
-                        continue
-
-    def create_dataset(self, b=0.5, threshold=0.2):
-        """
-        Create a dataset with a custom sine function.
-
-        Returns
-        -------
-        np.ndarray
-            Dataset with custom sine function.
-        """
-        function_dict = {}
-        for count, function_name, x, y, t, discontinuities, a_vector, b in self._create_functions(b, threshold):
-            if function_name not in function_dict:
-                function_dict[function_name] = {}  
-            if f"{len(discontinuities)}_discontinuities" not in function_dict[function_name]:
-                function_dict[function_name][f"{len(discontinuities)}_discontinuities"] = {}
-                
-            function_dict[function_name][f"{len(discontinuities)}_discontinuities"][count] = {
-                    "x": x.tolist(),
-                    "y": y.tolist(),
-                    "t": t.tolist(),
-                    "discontinuities": discontinuities.tolist(),
-                    "a_vector": a_vector.tolist(),
-                    "b": b,
-                    "num_discontinuities": len(discontinuities),
-                }
-
-
-        return function_dict
+        return pd.DataFrame(dataset)
