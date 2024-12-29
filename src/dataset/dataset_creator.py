@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 
 class SyntheticDataGenerator:
@@ -10,28 +11,25 @@ class SyntheticDataGenerator:
         self.end_time = end_time
         self.num_t_points = num_t_points
 
-    def T_k(self, x: np.ndarray, k: int, w: np.ndarray) -> float:
+    def T_k(self, x: np.ndarray, k: int) -> float:
         """
         Function that defines the time discontinuity for each k, with weight applied to x.
         """
-        weighted_x = x * w  # Apply weight to x
-        x_norm = np.linalg.norm(weighted_x, 2) / np.sqrt(len(weighted_x))
-        return k * x_norm + k**2 * np.max(weighted_x)
+        x_norm = np.linalg.norm(x, 2) / np.sqrt(len(x))
+        return k * x_norm + k**2 * np.max(x)
 
-    def Delta_k(self, x: np.ndarray, k: int, w: np.ndarray) -> float:
+    def Delta_k(self, x: np.ndarray, k: int) -> float:
         """
         Function that defines the change at each discontinuity, with weight applied to x.
         """
-        weighted_x = x * w  # Apply weight to x
-        x_norm = np.linalg.norm(weighted_x, 1) / len(weighted_x)
+        x_norm = np.linalg.norm(x, 1) / len(x)
         return np.exp(x_norm) / k
 
-    def h(self, x: np.ndarray, w: np.ndarray) -> float:
+    def h(self, x: np.ndarray) -> float:
         """
         A custom function based on the Euclidean norm of weighted x.
         """
-        weighted_x = x * w
-        return np.cos(np.linalg.norm(weighted_x, 2) / np.sqrt(len(weighted_x)))
+        return np.cos(np.linalg.norm(x, 2) / np.sqrt(len(x)))
 
     def g(self, x: np.ndarray, t: np.ndarray) -> np.ndarray:
         """
@@ -39,14 +37,14 @@ class SyntheticDataGenerator:
         """
         return np.sin(np.linalg.norm(x, 2) * t)
 
-    def f(self, t: np.ndarray, x: np.ndarray, K: int, w: np.ndarray) -> np.ndarray:
+    def f(self, t: np.ndarray, x: np.ndarray, K: int) -> np.ndarray:
         """
         Function that combines the smooth components and discontinuities, with weight applied to x.
         """
-        y = self.g(x, t) + self.h(x, w)
+        y = self.g(x, t) + self.h(x)
         for k in range(1, K + 1):
-            if t >= self.T_k(x, k, w):
-                y += self.Delta_k(x, k, w)
+            if t >= self.T_k(x, k):
+                y += self.Delta_k(x, k)
         return y
 
     def generate_synthetic_data(self) -> pd.DataFrame:
@@ -54,24 +52,21 @@ class SyntheticDataGenerator:
         Generate synthetic data for multiple samples with discontinuities and weights.
         """
         x_data = np.random.uniform(-1, 1, size=(self.num_samples, self.num_features))
-        weights = np.random.uniform(0.1, 2, size=(self.num_samples, self.num_features))
         t_values = np.linspace(0, self.end_time, self.num_t_points)
         
         dataset = []
         ks = []
-        for idx, x in enumerate(x_data):
-            w = weights[idx]
+        for idx, x in tqdm(enumerate(x_data), total=self.num_samples):
             k = np.random.randint(0, self.max_discontinuities + 1)
 
             for t in t_values:
-                y = self.f(t, x, k, w)
+                y = self.f(t, x, k)
                 ks.append(k)
                 dataset.append({
                     'function': idx,
                     'k': k,
                     't': t,
                     **{f'x{i+1}': x[i] for i in range(self.num_features)},
-                    **{f'w{i+1}': w[i] for i in range(self.num_features)},
                     'y': y
                 })
 
