@@ -55,16 +55,17 @@ class SyntheticDataGenerator:
         t_values = np.linspace(0, self.end_time, self.num_t_points)
         
         dataset = []
-        ks = []
         for idx, x in tqdm(enumerate(x_data), total=self.num_samples):
-            k = np.random.randint(0, self.max_discontinuities + 1)
+            
+            den = np.linalg.norm(x, 2) / np.sqrt(len(x)) + 2 * np.max(x)
+            
+            k = np.random.randint(0, max(1, min(self.max_discontinuities, (self.end_time // den))))
 
             for t in t_values:
                 y = self.f(t, x, k)
-                ks.append(k)
                 dataset.append({
                     'function': idx,
-                    'k': k,
+                    'num_discontinuities': k,
                     't': t,
                     **{f'x{i+1}': x[i] for i in range(self.num_features)},
                     'y': y
