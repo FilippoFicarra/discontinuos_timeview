@@ -60,7 +60,7 @@ class SyntheticDataGenerator:
             den = np.linalg.norm(x, 2) / np.sqrt(len(x)) + 2 * np.max(x)
             
             k = np.random.randint(0, max(1, min(self.max_discontinuities, (self.end_time // den))))
-
+            discontinuity_times = [self.T_k(x, k) for k in range(1, k + 1)]
             for t in t_values:
                 y = self.f(t, x, k)
                 dataset.append({
@@ -68,7 +68,8 @@ class SyntheticDataGenerator:
                     'num_discontinuities': k,
                     't': t,
                     **{f'x{i+1}': x[i] for i in range(self.num_features)},
-                    'y': y
+                    'y': y,
+                    'discontinuity': 1 if t in discontinuity_times else 0
                 })
 
         return pd.DataFrame(dataset)
