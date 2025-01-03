@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+
 class JumpDetector(nn.Module):
     def __init__(self, num_features=10, time_spacing=100):
         super(JumpDetector, self).__init__()
@@ -35,6 +36,10 @@ class LightningJumpDetector(pl.LightningModule):
         self.test_acc = []
         self.val_acc = []
         self.train_acc = []
+        
+        self.train_roc_auc_score = []
+        self.val_roc_auc_score = []
+        self.test_roc_auc_score = []
 
     def forward(self, x):
         return self.model(x)
@@ -48,6 +53,8 @@ class LightningJumpDetector(pl.LightningModule):
         self.train_acc.append((y_hat.round() == y).float().mean())
 
         self.log("train_loss", loss)
+        self.log("train_acc", (y_hat.round() == y).float().mean())
+        
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -59,6 +66,8 @@ class LightningJumpDetector(pl.LightningModule):
         self.val_acc.append((y_hat.round() == y).float().mean())
 
         self.log("val_loss", loss)
+        self.log("val_acc", (y_hat.round() == y).float().mean())
+        
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -70,6 +79,7 @@ class LightningJumpDetector(pl.LightningModule):
         self.test_acc.append((y_hat.round() == y).float().mean())
 
         self.log("test_loss", loss)
+        self.log("tes_acc", (y_hat.round() == y).float().mean())
         return loss
     
     def on_train_epoch_end(self):
