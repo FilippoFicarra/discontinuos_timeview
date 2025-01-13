@@ -5,4 +5,4 @@ Repo for the **2 weeks** project for PhD application at [van der Schaar Lab](htt
 ## Architecture 
 
 ![](assets/timeview.png)
-Discontinuous TIMEVIEW architecture. The block **h** is an encoder that maps the input vector **x** into timestamps in which jump discontinuities will appear.
+Discontinuous TIMEVIEW architecture. The block **h** is an encoder that maps the input vector **x** into timestamps in which jump discontinuities will appear. Piecewise TIMEVIEW takes as input the time interval between the jump discontinuity and applies the standard TIMEVIEW to it.
